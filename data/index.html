@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width,initial-scale=1.0'>
+    <title>Aviation Weather Monitor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class='container'>
+        <h1>✈️ Aviation Weather Monitor</h1>
+        
+        <div class='status'>
+            <h2>System Status</h2>
+            <div class='status-grid'>
+                <div class='status-item'>
+                    <strong>Program:</strong><br>%PROGRAM_STATUS%
+                </div>
+                <div class='status-item'>
+                    <strong>Last Update:</strong><br>%LAST_FETCH%
+                </div>
+                <div class='status-item'>
+                    <strong>Memory:</strong><br>%FREE_MEMORY% bytes
+                </div>
+                <div class='status-item'>
+                    <strong>Airports:</strong><br>%VALID_COUNT%/%TOTAL_COUNT% active
+                </div>
+            </div>
+        </div>
+        
+        <h2>Flight Categories & Indicators</h2>
+        <div class='legend'>
+            <div class='legend-item'>
+                <div class='legend-color' style='background: #28a745;'></div>
+                VFR - Visual Flight Rules
+            </div>
+            <div class='legend-item'>
+                <div class='legend-color' style='background: #007bff;'></div>
+                MVFR - Marginal VFR
+            </div>
+            <div class='legend-item'>
+                <div class='legend-color' style='background: #dc3545;'></div>
+                IFR - Instrument Flight Rules
+            </div>
+            <div class='legend-item'>
+                <div class='legend-color' style='background: #ff69b4;'></div>
+                LIFR - Low IFR
+            </div>
+            <div class='legend-item'>
+                <div class='legend-color' style='background: #ffc107;'></div>
+                <span class='badge-wind'>WIND</span> High Winds >25kt (Blinking)
+            </div>
+            <div class='legend-item'>
+                <div class='legend-color' style='background: white; border: 1px solid #ccc;'></div>
+                <span class='badge-ts'>⚡ TS</span> Thunderstorms (Lightning Flash)
+            </div>
+            <div class='legend-item'>
+                <div class='legend-color' style='background: #ff4500;'></div>
+                No Data Available
+            </div>
+        </div>
+        
+        <h2>Airport Weather Data</h2>
+        %AIRPORT_DATA%
+        
+        <div class='text-center mt-20'>
+            <button class='btn btn-primary' onclick='location.reload()'>🔄 Refresh Data</button>
+        </div>
+        
+        <div class='text-center mt-20'>
+            <a href='/settings' class='btn btn-warning'>⚙️ LED Settings</a>
+            <a href='/detailed' class='btn btn-success'>📊 Detailed Weather</a>
+            <a href='/status' class='btn btn-secondary'>🔧 System Status</a>
+        </div>
+        
+        <div style='margin-top: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px; font-size: 12px; color: #666; text-align: center;'>
+            Data refreshes automatically every 15 minutes • Weather data from aviationweather.gov<br>
+            💡 Configure LED brightness, wind warnings (blinking), and thunderstorm alerts (lightning flash) in Settings
+        </div>
+    </div>
+</body>
+</html>

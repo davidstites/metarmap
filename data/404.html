@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width,initial-scale=1.0'>
+    <title>404 - Page Not Found</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .error-container {
+            text-align: center;
+            padding: 60px 20px;
+        }
+        .error-code {
+            font-size: 120px;
+            font-weight: bold;
+            color: #dc3545;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        .error-message {
+            font-size: 24px;
+            color: #2d3748;
+            margin: 20px 0;
+        }
+        .error-description {
+            font-size: 16px;
+            color: #718096;
+            margin: 20px 0 40px 0;
+        }
+        .suggestions {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 8px;
+            margin: 30px 0;
+            text-align: left;
+        }
+        .suggestions h3 {
+            color: #2c5282;
+            margin-top: 0;
+        }
+        .suggestions ul {
+            list-style: none;
+            padding: 0;
+        }
+        .suggestions li {
+            padding: 10px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .suggestions li:last-child {
+            border-bottom: none;
+        }
+        .suggestions a {
+            color: #007bff;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .suggestions a:hover {
+            text-decoration: underline;
+        }
+        .airplane-icon {
+            font-size: 80px;
+            margin: 20px 0;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='error-container'>
+            <div class='airplane-icon'>✈️</div>
+            <h1 class='error-code'>404</h1>
+            <p class='error-message'>Page Not Found</p>
+            <p class='error-description'>
+                The page you're looking for seems to have taken an unexpected flight path.
+            </p>
+            
+            <div class='suggestions'>
+                <h3>🗺️ Available Destinations:</h3>
+                <ul>
+                    <li>
+                        <a href='/'>🏠 Main Dashboard</a>
+                        <br><small>View current weather conditions for all airports</small>
+                    </li>
+                    <li>
+                        <a href='/detailed'>📊 Detailed Weather</a>
+                        <br><small>In-depth METAR data for each airport</small>
+                    </li>
+                    <li>
+                        <a href='/settings'>⚙️ LED Settings</a>
+                        <br><small>Configure brightness, wind warnings, and thunderstorm alerts</small>
+                    </li>
+                    <li>
+                        <a href='/status'>🔧 System Status</a>
+                        <br><small>View diagnostics and system information</small>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class='button-group'>
+                <a href='/' class='btn btn-primary'>Go to Homepage</a>
+                <button class='btn btn-secondary' onclick='history.back()'>Go Back</button>
+            </div>
+        </div>
+        
+        <div style='margin-top: 40px; padding: 20px; background: #fff3cd; border-radius: 5px; border-left: 4px solid #ffc107;'>
+            <strong>💡 Tip:</strong> If you believe this page should exist, check that all template files are uploaded to LittleFS.
+        </div>
+    </div>
+</body>
+</html>

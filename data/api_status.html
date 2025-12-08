@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width,initial-scale=1.0'>
+    <title>API Status - Aviation Monitor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class='dark-theme'>
+    <div class='container'>
+        <h1>🔧 System Status & Diagnostics</h1>
+        
+        <h2>System Information</h2>
+        <div class='metric'>
+            <strong>Software Version:</strong> v%SW_VERS%<br>
+        </div>
+        
+        <h2>Memory Status</h2>
+        <div class='metric'>
+            <strong>Free Heap:</strong> %FREE_MEMORY% bytes<br>
+            <strong>Program Uptime:</strong> %UPTIME%
+        </div>
+        
+        <h2>Network Status</h2>
+        <div class='metric'>
+            <strong>WiFi Status:</strong> <span class='%WIFI_STATUS_CLASS%'>%WIFI_STATUS%</span><br>
+            <strong>IP Address:</strong> %IP_ADDRESS%<br>
+            <strong>Signal Strength:</strong> %WIFI_RSSI% dBm
+        </div>
+        
+        <h2>API Status</h2>
+        <div class='metric'>
+            <strong>Last Fetch Status:</strong> <span class='%API_STATUS_CLASS%'>%API_STATUS%</span><br>
+            <strong>Last Successful Fetch:</strong> %LAST_FETCH%<br>
+            <strong>Last Attempt:</strong> %LAST_ATTEMPT%<br>
+            <strong>Next Update In:</strong> %NEXT_UPDATE%
+        </div>
+        
+        <h2>API Request Details</h2>
+        <div class='code-block'>
+            %API_URL%
+        </div>
+        
+        <h2>Airport Configuration</h2>
+        <div class='metric'>
+            <strong>Configured Airports:</strong> %TOTAL_COUNT%<br>
+            <strong>Active Airports:</strong> %VALID_COUNT%<br>
+            <strong>Max Airports:</strong> %MAX_AIRPORTS%
+        </div>
+        
+        <div class='text-center mt-20'>
+            <button onclick='location.reload()' class='btn btn-primary'>
+                🔄 Refresh Status
+            </button>
+            <a href='/' class='btn btn-secondary'>← Back to Main</a>
+        </div>
+    </div>
+</body>
+</html>

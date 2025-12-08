@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width,initial-scale=1.0'>
+    <title>LED Settings - Aviation Monitor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class='container'>
+        <h1>⚙️ LED Settings</h1>
+        
+        <div class='info-text'>
+            💾 Settings are saved to flash memory and persist across reboots.
+        </div>
+        
+        <div id='statusMessage' class='status-message'></div>
+        
+        <!-- Brightness Setting -->
+        <div class='setting'>
+            <label>
+                💡 LED Brightness
+                <div class='setting-description'>Adjust the overall brightness of all LEDs (0-255)</div>
+            </label>
+            <div class='brightness-control'>
+                <span style='color: #718096;'>Dim</span>
+                <input type='range' id='brightness' min='0' max='255' value='%BRIGHTNESS%' 
+                       oninput='updateBrightnessDisplay(this.value)'>
+                <span style='color: #718096;'>Bright</span>
+                <div class='value-display' id='brightnessValue'>%BRIGHTNESS%</div>
+            </div>
+        </div>
+        
+        <!-- Wind Warnings Setting -->
+        <div class='setting'>
+            <div class='toggle-container'>
+                <div class='toggle-label'>
+                    <label>
+                        💨 Wind Warnings (Blinking)
+                        <div class='setting-description'>
+                            LEDs blink yellow when winds exceed %WIND_THRESHOLD% knots (1 second interval)
+                        </div>
+                    </label>
+                    <div class='feature-example'>
+                        <span>Normal:</span>
+                        <div class='color-indicator' style='background: #28a745;'></div>
+                        <span>→ High Wind:</span>
+                        <div class='color-indicator' style='background: #ffc107;'></div>
+                        <span style='font-size: 12px;'>⚡ (blinking)</span>
+                    </div>
+                </div>
+                <label class='switch'>
+                    <input type='checkbox' id='winds' %WIND_ENABLED%>
+                    <span class='slider'></span>
+                </label>
+            </div>
+        </div>
+		<!-- Wind Threshold Setting -->
+		<div class='setting'>
+		    <label>
+		        🌪️ Wind Warning Threshold
+		        <div class='setting-description'>Wind speed (in knots) that triggers yellow warning LED</div>
+		    </label>
+		    <div class='brightness-control'>
+		        <span style='color: #718096;'>5kt</span>
+		        <input type='range' id='windThreshold' min='5' max='100' value='%WIND_THRESHOLD%' 
+		               oninput='updateWindThresholdDisplay(this.value)'>
+		        <span style='color: #718096;'>100kt</span>
+		        <div class='value-display' id='windThresholdValue'>%WIND_THRESHOLD%</div>
+		    </div>
+		</div>
+        
+        <!-- Thunderstorm Flashing Setting -->
+        <div class='setting'>
+            <div class='toggle-container'>
+                <div class='toggle-label'>
+                    <label>
+                        ⚡ Thunderstorm Lightning Flash
+                        <div class='setting-description'>
+                            LEDs flash bright white like lightning when thunderstorms (TS) are reported, then restore flight category color
+                        </div>
+                    </label>
+                    <div class='feature-example'>
+                        <span>Normal:</span>
+                        <div class='color-indicator' style='background: #28a745;'></div>
+                        <span>⚡ Flash:</span>
+                        <div class='color-indicator' style='background: white; border: 2px solid #333;'></div>
+                        <span>→ Restore:</span>
+                        <div class='color-indicator' style='background: #28a745;'></div>
+                        <span style='font-size: 11px;'>(100ms cycles)</span>
+                    </div>
+                </div>
+                <label class='switch'>
+                    <input type='checkbox' id='thunderstorms' %THUNDERSTORM_ENABLED%>
+                    <span class='slider'></span>
+                </label>
+            </div>
+        </div>
+        
+        <!-- Color Reference -->
+        <div class='setting'>
+            <label>
+                🎨 LED Color Reference
+                <div class='setting-description'>How LEDs will appear with your settings</div>
+            </label>
+            <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px;'>
+                <div style='background: #28a745; color: white; padding: 10px; border-radius: 4px; text-align: center; font-weight: bold;'>
+                    VFR<br><small>Green</small>
+                </div>
+                <div style='background: #007bff; color: white; padding: 10px; border-radius: 4px; text-align: center; font-weight: bold;'>
+                    MVFR<br><small>Blue</small>
+                </div>
+                <div style='background: #dc3545; color: white; padding: 10px; border-radius: 4px; text-align: center; font-weight: bold;'>
+                    IFR<br><small>Red</small>
+                </div>
+                <div style='background: #ff69b4; color: white; padding: 10px; border-radius: 4px; text-align: center; font-weight: bold;'>
+                    LIFR<br><small>Hot Pink</small>
+                </div>
+                <div style='background: #ffc107; color: #212529; padding: 10px; border-radius: 4px; text-align: center; font-weight: bold;'>
+                    WIND<br><small>Yellow (Blink)</small>
+                </div>
+                <div style='background: white; border: 2px solid #333; padding: 10px; border-radius: 4px; text-align: center; font-weight: bold;'>
+                    TS<br><small>White (Flash)</small>
+                </div>
+                <div style='background: #ff4500; color: white; padding: 10px; border-radius: 4px; text-align: center; font-weight: bold;'>
+                    NO DATA<br><small>Orange Red</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class='button-group'>
+            <button class='btn btn-primary' onclick='saveSettings()'>
+                💾 Save Settings
+            </button>
+            <a href='/' class='btn btn-secondary'>
+                ← Back to Main
+            </a>
+        </div>
+        
+        <div style='margin-top: 30px; padding: 15px; background: #fff3cd; border-radius: 5px; border-left: 4px solid #ffc107;'>
+            <strong>💡 Tips:</strong>
+            <ul style='margin: 10px 0; text-align: left;'>
+                <li>Changes take effect immediately after saving</li>
+                <li>Wind warnings blink every 1 second</li>
+                <li>Thunderstorm lightning flashes rapidly (100ms) like real lightning</li>
+                <li>Thunderstorms take priority over wind warnings</li>
+                <li>Press Ctrl+S or Cmd+S to quick-save settings</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        function updateBrightnessDisplay(value) {
+            document.getElementById('brightnessValue').textContent = value;
+        }
+		
+		function updateWindThresholdDisplay(value) {
+		    document.getElementById('windThresholdValue').textContent = value + ' kt';
+		}
+        
+        function saveSettings() {
+            const brightness = document.getElementById('brightness').value;
+            const winds = document.getElementById('winds').checked;
+			const windThreshold = document.getElementById('windThreshold').value;
+            const thunderstorms = document.getElementById('thunderstorms').checked;
+            
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = '⏳ Saving settings...';
+            statusMessage.className = 'status-message';
+            statusMessage.style.display = 'block';
+            statusMessage.style.background = '#cce5ff';
+            statusMessage.style.color = '#004085';
+            statusMessage.style.border = '1px solid #b8daff';
+            
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/settings', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    statusMessage.className = 'status-message success';
+                    statusMessage.textContent = '✅ Settings saved successfully! LEDs have been updated.';
+                    
+                    setTimeout(function() {
+                        statusMessage.style.display = 'none';
+                    }, 3000);
+                } else {
+                    statusMessage.className = 'status-message error';
+                    statusMessage.textContent = '❌ Failed to save settings. Please try again.';
+                }
+            };
+            
+            xhr.onerror = function() {
+                statusMessage.className = 'status-message error';
+                statusMessage.textContent = '❌ Network error. Please check your connection.';
+            };
+            
+            xhr.send('brightness=' + brightness + '&winds=' + winds + '&windThreshold=' + windThreshold + '&thunderstorms=' + thunderstorms);
+        }
+        
+        // Keyboard shortcut: Ctrl+S or Cmd+S to save
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                saveSettings();
+            }
+        });
+    </script>
+</body>
+</html>

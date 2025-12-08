@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='UTF-8'>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WiFi Configuration - Aviation Monitor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>📡 WiFi Configuration</h1>
+    
+    <div class="info-text">
+      Configure your WiFi credentials to connect the Aviation Weather Monitor to your network.
+    </div>
+    
+    <div class="card">
+      <form action="/" method="POST">
+        <div class="setting">
+          <label for="ssid">
+            📶 Network Name (SSID)
+            <div class="setting-description">Enter your WiFi network name</div>
+          </label>
+          <input type="text" id="ssid" name="ssid" placeholder="Enter WiFi SSID" required 
+                 style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-top: 8px;">
+        </div>
+        
+        <div class="setting">
+          <label for="pass">
+            🔒 Password
+            <div class="setting-description">Enter your WiFi password</div>
+          </label>
+          <input type="password" id="pass" name="pass" placeholder="Enter WiFi Password" 
+                 style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-top: 8px;">
+        </div>
+        
+        <div class="button-group">
+          <input type="submit" value="Connect" class="btn btn-primary">
+        </div>
+      </form>
+    </div>
+    
+    <div style="margin-top: 30px; padding: 15px; background: #fff3cd; border-radius: 5px; border-left: 4px solid #ffc107;">
+      <strong>ℹ️ Instructions:</strong>
+      <ul style="margin: 10px 0; text-align: left; padding-left: 20px;">
+        <li>Enter your WiFi network name (SSID)</li>
+        <li>Enter your WiFi password (leave blank if no password)</li>
+        <li>Click "Connect" to save and restart</li>
+        <li>The device will restart and connect to your network</li>
+        <li>Access the weather monitor at <strong>http://metarmap.local</strong></li>
+      </ul>
+    </div>
+    
+    <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 5px; border-left: 4px solid #2196f3; text-align: center;">
+      <strong>🔧 Need to reset?</strong><br>
+      Hold the button on your device for 3 seconds to reset WiFi settings
+    </div>
+  </div>
+</body>
+</html>
