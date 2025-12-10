@@ -11,6 +11,7 @@
 #include <ESPmDNS.h>
 #include <FastLED.h>
 #include <LittleFS.h>
+#include <Preferences.h>
 #include <time.h>
 #include <WiFiClientSecure.h>
 
@@ -18,12 +19,22 @@
 // CONFIGURATION
 // ============================================================================
 
-#define SW_VERS "1.3"
+#define SW_VERS "1.4"
 
 // Hardware
-#define DATA_PIN 25
+
+#define DIG2GO 1
+
+#ifdef DIG2GO
+#define BUTTON_PIN 0
+#define DATA_PIN 16
+#define LED_POWER_PIN 12
+#else
 #define LED_INTERNAL_PIN 2
+#define DATA_PIN 25
 #define BUTTON_PIN 22
+#endif
+#define BUTTON_LONG_PRESS_DURATION 7000
 #define LED_TYPE WS2812B
 #define COLOR_ORDER GRB
 
@@ -41,8 +52,8 @@
 #define WIFI_CHECK_INTERVAL 10000
 #define WIFI_CONNECT_TIMEOUT 20000
 #define TEMPLATE_CACHE_DURATION 300000
-#define THUNDERSTORM_FLASH_INTERVAL 100  // Fast lightning flash
-#define WIND_BLINK_INTERVAL 1000         // Wind LED blink interval
+#define THUNDERSTORM_FLASH_INTERVAL 100
+#define WIND_BLINK_INTERVAL 1000
 
 // Network
 #define AVIATION_WEATHER_HOST "aviationweather.gov"
@@ -200,17 +211,19 @@ struct AirportLED {
 // SYSTEM STATE
 // ============================================================================
 
+Preferences preferences;
+
 struct SystemState {
     char lastFetchTime[32];
     char lastAttemptTime[32];
     char programStatus[STATUS_BUFFER_SIZE];
     METAR_STATUS lastFetchStatus;
     unsigned long programStartTime;
-    
+    bool ledPowerState;
     uint8_t ledBrightness;
-    bool windEnabled;
-    bool thunderstormsEnabled;
-    uint8_t windThreshold;
+    bool windCheckEnabled;
+    bool thunderstormsCheckEnabled;
+    uint8_t windCheckThreshold;
     
     void init() {
         safeCopy(lastFetchTime, "Never");
@@ -218,6 +231,7 @@ struct SystemState {
         safeCopy(programStatus, "Starting up");
         lastFetchStatus = SUCCESS;
         programStartTime = millis();
+        preferences.begin("metarmap", false);
         loadSettings();
     }
     
@@ -226,9 +240,10 @@ struct SystemState {
         if (!file) {
             Serial.println("No settings file, using defaults");
             ledBrightness = DEFAULT_BRIGHTNESS;
-            windEnabled = DO_WINDS;
-            thunderstormsEnabled = DO_THUNDERSTORMS;
-            windThreshold = WIND_THRESHOLD;
+            windCheckEnabled = DO_WINDS;
+            thunderstormsCheckEnabled = DO_THUNDERSTORMS;
+            windCheckThreshold = WIND_THRESHOLD;
+            ledPowerState = true;
             return;
         }
         
@@ -249,18 +264,18 @@ struct SystemState {
         
         int windIdx = content.indexOf("\"windEnabled\":");
         if (windIdx >= 0) {
-            windEnabled = (content.indexOf("true", windIdx) > windIdx && 
-                          content.indexOf("true", windIdx) < windIdx + 20);
+            windCheckEnabled = (content.indexOf("true", windIdx) > windIdx && 
+                                content.indexOf("true", windIdx) < windIdx + 20);
         } else {
-            windEnabled = DO_WINDS;
+            windCheckEnabled = DO_WINDS;
         }
         
         int tsIdx = content.indexOf("\"thunderstormsEnabled\":");
         if (tsIdx >= 0) {
-            thunderstormsEnabled = (content.indexOf("true", tsIdx) > tsIdx && 
-                                   content.indexOf("true", tsIdx) < tsIdx + 30);
+            thunderstormsCheckEnabled = (content.indexOf("true", tsIdx) > tsIdx && 
+                                        content.indexOf("true", tsIdx) < tsIdx + 30);
         } else {
-            thunderstormsEnabled = DO_THUNDERSTORMS;
+            thunderstormsCheckEnabled = DO_THUNDERSTORMS;
         }
 
         int thresholdIdx = content.indexOf("\"windThreshold\":");
@@ -270,16 +285,19 @@ struct SystemState {
             if (valEnd < 0) valEnd = content.indexOf('}', valStart);
             String val = content.substring(valStart, valEnd);
             val.trim();
-            windThreshold = constrain(val.toInt(), 5, 100);
+            windCheckThreshold = constrain(val.toInt(), 5, 100);
         } else {
-            windThreshold = WIND_THRESHOLD;
+            windCheckThreshold = WIND_THRESHOLD;
         }
+
+        ledPowerState = preferences.getBool("ledsEnabled", true);
         
         Serial.println("Settings loaded:");
+        Serial.printf("  LED power state: %s", ledPowerState ? "on" : "off");
         Serial.printf("  Brightness: %d\n", ledBrightness);
-        Serial.printf("  Wind warnings: %s\n", windEnabled ? "enabled" : "disabled");
-        Serial.printf("  Wind threshold: %d kt\n", windThreshold); 
-        Serial.printf("  Thunderstorms: %s\n", thunderstormsEnabled ? "enabled" : "disabled");
+        Serial.printf("  Wind warnings: %s\n", windCheckEnabled ? "enabled" : "disabled");
+        Serial.printf("  Wind threshold: %d kt\n", windCheckThreshold); 
+        Serial.printf("  Thunderstorms: %s\n", thunderstormsCheckEnabled ? "enabled" : "disabled");
     }
     
     void saveSettings() {
@@ -292,11 +310,11 @@ struct SystemState {
         file.print("{\"brightness\":");
         file.print(ledBrightness);
         file.print(",\"windEnabled\":");
-        file.print(windEnabled ? "true" : "false");
+        file.print(windCheckEnabled ? "true" : "false");
         file.print(",\"thunderstormsEnabled\":");
-        file.print(thunderstormsEnabled ? "true" : "false");
+        file.print(thunderstormsCheckEnabled ? "true" : "false");
         file.print(",\"windThreshold\":");
-        file.print(windThreshold);
+        file.print(windCheckThreshold);
         file.print("}");
         file.close();
         
@@ -326,22 +344,28 @@ struct SystemState {
     uint8_t getBrightness() const { return ledBrightness; }
     
     void setWindEnabled(bool enabled) { 
-        windEnabled = enabled;
+        windCheckEnabled = enabled;
         saveSettings();
     }
-    bool isWindEnabled() const { return windEnabled; }
+    bool windEnabled() const { return windCheckEnabled; }
     
     void setThunderstormsEnabled(bool enabled) { 
-        thunderstormsEnabled = enabled;
+        thunderstormsCheckEnabled = enabled;
         saveSettings();
     }
-    bool isThunderstormsEnabled() const { return thunderstormsEnabled; }
+    bool thunderstormsEnabled() const { return thunderstormsCheckEnabled; }
 
     void setWindThreshold(uint8_t threshold) {
-        windThreshold = constrain(threshold, 5, 100);
+        windCheckThreshold = constrain(threshold, 5, 100);
         saveSettings();
     }
-    uint8_t getWindThreshold() const { return windThreshold; }
+    uint8_t windThreshold() const { return windCheckThreshold; }
+
+    void setLEDState(bool state) {
+        ledPowerState = state;
+        preferences.putBool("ledsEnabled", ledPowerState);
+    }
+    bool ledsEnabled() const { return ledPowerState; }
     
     bool checkMemory() {
         if (ESP.getFreeHeap() < CRITICAL_MEMORY_THRESHOLD) {
@@ -854,7 +878,9 @@ private:
 class LEDController {
 private:
     CRGB* leds;
+#if !DIG2GO
     CRGB* internalLeds;
+#endif
     int numLeds;
     CRGB* baseColors;
     unsigned long lastFlashTime;
@@ -874,23 +900,29 @@ public:
     LEDController(CRGB* leds, int numLeds) 
         : leds(leds), numLeds(numLeds), lastFlashTime(0), lastWindBlinkTime(0), 
           flashState(false), windBlinkState(false) {
+#if !DIG2GO
         internalLeds = new CRGB[1];
+#endif
         baseColors = new CRGB[numLeds];
     }
     
     ~LEDController() {
+#if !DIG2GO
         delete[] internalLeds;
+#endif
         delete[] baseColors;
     }
     
     void begin() {
-        FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, numLeds)
-            .setCorrection(TypicalLEDStrip);
-        FastLED.addLeds<LED_TYPE, LED_INTERNAL_PIN, COLOR_ORDER>(internalLeds, 1)
-            .setCorrection(TypicalLEDStrip);
+        FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, numLeds).setCorrection(TypicalLEDStrip);
+#if !DIG2GO
+        FastLED.addLeds<LED_TYPE, LED_INTERNAL_PIN, COLOR_ORDER>(internalLeds, 1).setCorrection(TypicalLEDStrip);
+#endif        
         FastLED.setBrightness(g_state.getBrightness());
         Serial.printf("LEDs initialized: %d\n", numLeds);
+#if !DIG2GO
         fill_solid(internalLeds, 1, CRGB::White);
+#endif
         setAll(LEDColors::NO_DATA);
     }
     
@@ -898,7 +930,10 @@ public:
         Serial.println("\n🌈 Updating LEDs...");
         
         for (int i = 0; i < numAirports && i < numLeds; i++) {
-            if (airports[i].isEmpty()) {
+            if (!g_state.ledsEnabled()) {
+                leds[i] = LEDColors::OFF;
+                baseColors[i] = LEDColors::OFF;
+            } else if (airports[i].isEmpty()) {
                 leds[i] = LEDColors::OFF;
                 baseColors[i] = LEDColors::OFF;
             } else if (!airports[i].hasValidData || !airports[i].metarData.hasFltcat()) {
@@ -912,9 +947,9 @@ public:
                 
                 // Check for high winds - store wind warning in base color but don't set LED yet
                 // (let updateWindBlink handle the actual blinking)
-                if (g_state.isWindEnabled() && 
+                if (g_state.windEnabled() && 
                     airports[i].metarData.hasWspd() && 
-                    airports[i].metarData.wspd > g_state.getWindThreshold()) {
+                    airports[i].metarData.wspd > g_state.windThreshold()) {
                     baseColors[i] = LEDColors::WIND_WARNING;
                     Serial.println("LED " + String(i) + " (" + String(airports[i].icaoCode) + 
                                   "): YELLOW (High winds: " + String(airports[i].metarData.wspd) + " kt)");
@@ -933,10 +968,11 @@ public:
     }
     
     void updateThunderstorms(const AirportLED* airports, int numAirports) {
-        if (!g_state.isThunderstormsEnabled()) return;
+        if (!g_state.thunderstormsEnabled()) { return; }
+        if (!g_state.ledsEnabled()) { return; }
         
         // Don't show effects if weather fetch failed
-        if (g_state.lastFetchStatus != SUCCESS) return;
+        if (g_state.lastFetchStatus != SUCCESS) { return; }
         
         unsigned long currentMillis = millis();
         
@@ -985,10 +1021,11 @@ public:
     }
     
     void updateWindBlink(const AirportLED* airports, int numAirports) {
-        if (!g_state.isWindEnabled()) return;
+        if (!g_state.windEnabled()) { return; }
+        if (!g_state.ledsEnabled()) { return; }
         
         // Don't show effects if weather fetch failed
-        if (g_state.lastFetchStatus != SUCCESS) return;
+        if (g_state.lastFetchStatus != SUCCESS) { return; }
         
         unsigned long currentMillis = millis();
         
@@ -1002,7 +1039,7 @@ public:
                 // Only blink if: has valid data, high winds, AND no thunderstorm
                 if (airports[i].hasValidData && 
                     airports[i].metarData.hasWspd() && 
-                    airports[i].metarData.wspd > g_state.getWindThreshold() &&
+                    airports[i].metarData.wspd > g_state.windThreshold() &&
                     !airports[i].metarData.hasThunderstorm()) { // Don't blink if thunderstorm is active
                     
                     if (windBlinkState) {
@@ -1021,6 +1058,8 @@ public:
     }
     
     void rainbowSweep() {
+        if (!g_state.ledsEnabled()) { return; }
+
         for (int hue = 0; hue < 256; hue++) {
             fill_solid(leds, numLeds, CHSV(hue, 255, 255));
             FastLED.show();
@@ -1483,12 +1522,12 @@ private:
         
         html.replace("%BRIGHTNESS%", String(g_state.getBrightness()));
         
-        String windChecked = g_state.isWindEnabled() ? "checked" : "";
+        String windChecked = g_state.windEnabled() ? "checked" : "";
         html.replace("%WIND_ENABLED%", windChecked);
 
-        html.replace("%WIND_THRESHOLD%", String(g_state.getWindThreshold()));
+        html.replace("%WIND_THRESHOLD%", String(g_state.windThreshold()));
         
-        String tsChecked = g_state.isThunderstormsEnabled() ? "checked" : "";
+        String tsChecked = g_state.thunderstormsEnabled() ? "checked" : "";
         html.replace("%THUNDERSTORM_ENABLED%", tsChecked);
         
         html.replace("%WIND_THRESHOLD%", String(WIND_THRESHOLD));
@@ -1627,8 +1666,12 @@ void setup() {
     
     initializeFileSystem();
     g_state.init();
-    
+
     pinMode(BUTTON_PIN, INPUT_PULLUP);
+#if DIG2GO  
+    pinMode(LED_POWER_PIN, OUTPUT);
+    digitalWrite(LED_POWER_PIN, HIGH);
+#endif
     ledController.begin();
     ledController.setBrightness(g_state.getBrightness());
     
@@ -1713,13 +1756,38 @@ void initializeTime() {
 }
 
 void handleButtonPress() {
-    static unsigned long lastPress = 0;
-    if (digitalRead(BUTTON_PIN) == LOW && (millis() - lastPress) > 50) {
-        Serial.println("Button pressed - resetting WiFi");
-        wifiManager.resetCredentials();
-        delay(1000);
-        ESP.restart();
-        lastPress = millis();
+    static unsigned long pressStartTime = 0;
+    static bool buttonWasPressed = false;
+    static bool longPressHandled = false;
+    
+    bool buttonPressed = (digitalRead(BUTTON_PIN) == LOW);
+    
+    if (buttonPressed && !buttonWasPressed) {
+        pressStartTime = millis();
+        buttonWasPressed = true;
+        longPressHandled = false;
+    } else if (buttonPressed && buttonWasPressed) {
+        unsigned long pressDuration = millis() - pressStartTime;
+        
+        if (pressDuration >= BUTTON_LONG_PRESS_DURATION && !longPressHandled) {
+            Serial.println("Long press detected - resetting WiFi.");
+            wifiManager.resetCredentials();
+            delay(1000);
+            ESP.restart();
+            longPressHandled = true;
+        }
+    } else if (!buttonPressed && buttonWasPressed) {
+        unsigned long pressDuration = millis() - pressStartTime;
+        
+        if (pressDuration < BUTTON_LONG_PRESS_DURATION) {
+            Serial.println("Button pressed - toggling LEDs.");
+            g_state.setLEDState(!g_state.ledsEnabled());
+#if DIG2GO
+            digitalWrite(LED_POWER_PIN, g_state.ledsEnabled() ? HIGH : LOW);
+#endif
+        }
+        
+        buttonWasPressed = false;
     }
 }
 
