@@ -11,6 +11,7 @@
 #include <ESPmDNS.h>
 #include <FastLED.h>
 #include <LittleFS.h>
+#include <map>
 #include <Preferences.h>
 #include <time.h>
 #include <WiFiClientSecure.h>
@@ -19,7 +20,7 @@
 // CONFIGURATION
 // ============================================================================
 
-#define SW_VERS "1.4"
+#define SW_VERS "1.5"
 
 // Hardware
 
@@ -118,6 +119,15 @@ inline uint32_t secondsToMillis(uint32_t s) { return s * 1000; }
 // DATA STRUCTURES
 // ============================================================================
 
+#define HAS_TEMP 0x01
+#define HAS_DEWP 0x02
+#define HAS_WSPD 0x04
+#define HAS_WDIR 0x08
+#define HAS_VISIB 0x10
+#define HAS_ALTIM 0x20
+#define HAS_FLTCAT 0x40
+#define HAS_THUNDERSTORM 0x80
+
 enum METAR_STATUS {
     SUCCESS = 0,
     CONNECTION_FAILURE = -1,
@@ -127,39 +137,108 @@ enum METAR_STATUS {
 };
 
 struct METAR {
-    char icaoId[ICAO_BUFFER_SIZE];
-    char receiptTime[24];
-    char obsTime[24];
-    char rawText[128];
-    char fltcat[5];
-    char cloudConditions[64];
-    
+    char *rawText;
+    char *cloudConditions;
     float temp;
     float dewp;
     float wspd;
-    int wdir;
     float visib;
     float altim;
+    uint16_t wdir;
     uint16_t flags;
+    char icaoId[ICAO_BUFFER_SIZE];
+    char receiptTime[8];
+    char obsTime[8];
+    char fltcat[5];
     
-    static const uint16_t HAS_TEMP = 0x01;
-    static const uint16_t HAS_DEWP = 0x02;
-    static const uint16_t HAS_WSPD = 0x04;
-    static const uint16_t HAS_WDIR = 0x08;
-    static const uint16_t HAS_VISIB = 0x10;
-    static const uint16_t HAS_ALTIM = 0x20;
-    static const uint16_t HAS_FLTCAT = 0x40;
-    static const uint16_t HAS_THUNDERSTORM = 0x80;
-    
-    METAR() : temp(0), dewp(0), wspd(0), wdir(0), visib(0), altim(0), flags(0) {
+    METAR() : rawText(nullptr), cloudConditions(nullptr), 
+              temp(0), dewp(0), wspd(0), wdir(0), visib(0), altim(0), flags(0) {
         memset(icaoId, 0, sizeof(icaoId));
         memset(receiptTime, 0, sizeof(receiptTime));
         memset(obsTime, 0, sizeof(obsTime));
-        memset(rawText, 0, sizeof(rawText));
         memset(fltcat, 0, sizeof(fltcat));
-        memset(cloudConditions, 0, sizeof(cloudConditions));
     }
-    
+
+    // Copy constructor
+    METAR(const METAR& other) : rawText(nullptr), cloudConditions(nullptr),
+                                temp(other.temp), dewp(other.dewp), wspd(other.wspd),
+                                wdir(other.wdir), visib(other.visib), altim(other.altim),
+                                flags(other.flags) {
+        memcpy(icaoId, other.icaoId, sizeof(icaoId));
+        memcpy(receiptTime, other.receiptTime, sizeof(receiptTime));
+        memcpy(obsTime, other.obsTime, sizeof(obsTime));
+        memcpy(fltcat, other.fltcat, sizeof(fltcat));
+        
+        if (other.rawText) {
+            size_t len = strlen(other.rawText);
+            rawText = (char*)malloc(len + 1);
+            if (rawText) {
+                strcpy(rawText, other.rawText);
+            }
+        }
+        
+        if (other.cloudConditions) {
+            size_t len = strlen(other.cloudConditions);
+            cloudConditions = (char*)malloc(len + 1);
+            if (cloudConditions) {
+                strcpy(cloudConditions, other.cloudConditions);
+            }
+        }
+    }
+
+    METAR& operator=(const METAR& other) {
+        if (this != &other) {
+            if (rawText) {
+                free(rawText);
+                rawText = nullptr;
+            }
+            if (cloudConditions) {
+                free(cloudConditions);
+                cloudConditions = nullptr;
+            }
+            
+            temp = other.temp;
+            dewp = other.dewp;
+            wspd = other.wspd;
+            wdir = other.wdir;
+            visib = other.visib;
+            altim = other.altim;
+            flags = other.flags;
+            memcpy(icaoId, other.icaoId, sizeof(icaoId));
+            memcpy(receiptTime, other.receiptTime, sizeof(receiptTime));
+            memcpy(obsTime, other.obsTime, sizeof(obsTime));
+            memcpy(fltcat, other.fltcat, sizeof(fltcat));
+            
+            if (other.rawText) {
+                size_t len = strlen(other.rawText);
+                rawText = (char *)malloc(len + 1);
+                if (rawText) {
+                    strcpy(rawText, other.rawText);
+                }
+            }
+            
+            if (other.cloudConditions) {
+                size_t len = strlen(other.cloudConditions);
+                cloudConditions = (char *)malloc(len + 1);
+                if (cloudConditions) {
+                    strcpy(cloudConditions, other.cloudConditions);
+                }
+            }
+        }
+        return *this;
+    }
+
+    ~METAR() {
+        if (rawText) {
+            free(rawText);
+            rawText = nullptr;
+        }
+        if (cloudConditions) {
+            free(cloudConditions);
+            cloudConditions = nullptr;
+        }
+    }
+
     bool hasTemp() const { return flags & HAS_TEMP; }
     bool hasDewp() const { return flags & HAS_DEWP; }
     bool hasWspd() const { return flags & HAS_WSPD; }
@@ -168,6 +247,14 @@ struct METAR {
     bool hasAltim() const { return flags & HAS_ALTIM; }
     bool hasFltcat() const { return flags & HAS_FLTCAT; }
     bool hasThunderstorm() const { return flags & HAS_THUNDERSTORM; }
+    bool hasReceiptTime() const { return strlen(receiptTime) == 7; }
+    bool hasObsTime() const { return strlen(obsTime) == 7; }
+    bool hasCloudConditions() const { 
+        return cloudConditions && strlen(cloudConditions) > 0;
+    }
+    bool hasRawText() const { 
+        return rawText && strlen(rawText) > 0;
+    }
     
     void setTemp(float value) { temp = value; flags |= HAS_TEMP; }
     void setDewp(float value) { dewp = value; flags |= HAS_DEWP; }
@@ -175,10 +262,40 @@ struct METAR {
     void setWdir(int value) { wdir = value; flags |= HAS_WDIR; }
     void setVisib(float value) { visib = value; flags |= HAS_VISIB; }
     void setAltim(float value) { altim = value; flags |= HAS_ALTIM; }
-    void setFltcat(const char* value) { safeCopy(fltcat, value); flags |= HAS_FLTCAT; }
+    void setFltcat(const char *value) { safeCopy(fltcat, value); flags |= HAS_FLTCAT; }
     void setThunderstorm(bool value) { 
         if (value) flags |= HAS_THUNDERSTORM; 
         else flags &= ~HAS_THUNDERSTORM; 
+    }
+    void setReceiptTime(const char *time) { safeCopy(receiptTime, time); }
+    void setObsTime(const char *time) { safeCopy(obsTime, time); }
+    
+    void setRawText(const char *text) {
+        if (rawText) {
+            free(rawText);
+            rawText = nullptr;
+        }
+        if (text) {
+            size_t len = strlen(text);
+            rawText = (char *)malloc(len + 1);
+            if (rawText) {
+                strcpy(rawText, text);
+            }
+        }
+    }
+    
+    void setCloudConditions(const char *text) {
+        if (cloudConditions) {
+            free(cloudConditions);
+            cloudConditions = nullptr;
+        }
+        if (text) {
+            size_t len = strlen(text);
+            cloudConditions = (char *)malloc(len + 1);
+            if (cloudConditions) {
+                strcpy(cloudConditions, text);
+            }
+        }
     }
     
     bool isValid() const {
@@ -385,7 +502,69 @@ SystemState g_state;
 // ============================================================================
 
 class MetarParser {
-public:
+public:    
+    static bool parseObsTime(const char* rawMetarLine, char* obsTime, size_t obsTimeSize) {
+        if (!rawMetarLine || !obsTime || obsTimeSize < 8) {
+            return false;
+        }
+        
+        const char* timeStart = rawMetarLine;
+        while (*timeStart == ' ') {
+            timeStart++;
+        }
+        
+        if (strncmp(timeStart, "METAR", 5) == 0) {
+            timeStart += 5;
+            while (*timeStart == ' ') {
+                timeStart++;
+            }
+        }
+        
+        if (strlen(timeStart) < 4) { 
+            return false;
+        }
+        timeStart += 4;
+        while (*timeStart == ' ') { 
+            timeStart++;
+        }
+        
+        if (strlen(timeStart) < 7) return false;
+        
+        if (!isdigit(timeStart[0]) || !isdigit(timeStart[1]) ||
+            !isdigit(timeStart[2]) || !isdigit(timeStart[3]) ||
+            !isdigit(timeStart[4]) || !isdigit(timeStart[5]) ||
+            (timeStart[6] != 'Z' && timeStart[6] != 'z')) {
+            return false;
+        }
+        
+        int day = (timeStart[0] - '0') * 10 + (timeStart[1] - '0');
+        int hour = (timeStart[2] - '0') * 10 + (timeStart[3] - '0');
+        int minute = (timeStart[4] - '0') * 10 + (timeStart[5] - '0');
+        
+        if (day < 1 || day > 31 || hour > 23 || minute > 59) {
+            Serial.printf("Invalid time: day=%d hour=%d minute=%d\n", day, hour, minute);
+            return false;
+        }
+        
+        strncpy(obsTime, timeStart, 7);
+        obsTime[7] = '\0';
+        
+        return true;
+    }
+    
+    static void formatObsTime(const char* obsTime, char* output, size_t outputSize) {
+        if (!obsTime || strlen(obsTime) < 7 || !output || outputSize < 20) {
+            if (output && outputSize > 0) output[0] = '\0';
+            return;
+        }
+        
+        char day[3] = {obsTime[0], obsTime[1], '\0'};
+        char hour[3] = {obsTime[2], obsTime[3], '\0'};
+        char minute[3] = {obsTime[4], obsTime[5], '\0'};
+        
+        snprintf(output, outputSize, "Day %s at %s:%s UTC", day, hour, minute);
+    }
+
     static float parseVisibility(const char* visStr) {
         if (!visStr) return 0.0;
         String vis = String(visStr);
@@ -475,8 +654,18 @@ public:
             return metar;
         }
         
-        safeCopy(metar.rawText, rawMetarLine);
+        metar.setRawText(rawMetarLine);
         Serial.printf("📋 Parsing: %s\n", rawMetarLine);
+
+        char obsTimeBuffer[8];
+        if (parseObsTime(rawMetarLine, obsTimeBuffer, sizeof(obsTimeBuffer))) {
+            metar.setObsTime(obsTimeBuffer);
+            char formattedTime[30];
+            formatObsTime(obsTimeBuffer, formattedTime, sizeof(formattedTime));
+            Serial.printf("🕐 Observation: %s\n", formattedTime);
+        } else {
+            Serial.println("⚠️ Could not parse observation time");
+        }
         
         // Check for thunderstorms in weather phenomena (not in airport codes)
         // Thunderstorms appear in present weather section, typically after visibility
@@ -571,15 +760,29 @@ public:
         }
         
         // Extract altimeter
-        const char* altPtr = strchr(rawMetarLine, 'A');
-        if (altPtr && strlen(altPtr) >= 5) {
-            char altStr[5];
-            strncpy(altStr, altPtr + 1, 4);
-            altStr[4] = '\0';
-            if (isdigit(altStr[0]) && isdigit(altStr[1]) && 
-                isdigit(altStr[2]) && isdigit(altStr[3])) {
-                metar.setAltim(atof(altStr) / 100.0);
+        const char *altPtr = strstr(rawMetarLine, " A");
+        while (altPtr != NULL) {
+            altPtr++;
+            
+            if (strlen(altPtr) >= 5) {
+                int all_digits = 1;
+                for (int i = 1; i < 5; i++) {
+                    if (!isdigit(altPtr[i])) {
+                        all_digits = 0;
+                        break;
+                    }
+                }
+                
+                if (all_digits) {
+                    char altStr[5];
+                    strncpy(altStr, altPtr + 1, 4);
+                    altStr[4] = '\0';
+                    metar.setAltim(atof(altStr) / 100.0);
+                    break;
+                }
             }
+            
+            altPtr = strstr(altPtr + 1, " A");
         }
         
         // Derive flight category
@@ -1110,17 +1313,47 @@ private:
     int numAirports;
     WiFiManager& wifiManager;
     
-    struct TemplateCache {
+    struct PageTemplate {
         String content;
         unsigned long cacheTime;
         bool isValid;
-        TemplateCache() : cacheTime(0), isValid(false) {}
+        PageTemplate() : cacheTime(0), isValid(false) {}
     };
-    
-    TemplateCache mainTemplate;
-    TemplateCache detailedTemplate;
-    TemplateCache statusTemplate;
-    TemplateCache settingsTemplate;
+
+    struct TemplateCache {
+        std::map<String, PageTemplate> templatesByName;
+        
+        PageTemplate *templateForKey(const char *key) {
+            if (!key) {
+                return nullptr;
+            }
+            auto it = templatesByName.find(key);
+            if (it != templatesByName.end()) {
+                return &(it->second);
+            }
+            return nullptr;
+        }
+
+        void setTemplateForKey(const char *key, PageTemplate *pageTemplate) {
+            if (!key) {
+                return;
+            }
+
+            if (!pageTemplate) {
+                templatesByName.erase(key);
+                return;
+            }
+
+            pageTemplate->cacheTime = millis();
+            templatesByName[key] = *pageTemplate;
+        }
+
+        void invalidate() {
+            templatesByName.clear();
+        }
+    };
+
+    TemplateCache cache;
     
 public:
     WebServerHandler(AsyncWebServer& srv, AirportLED* apt, int num, WiFiManager& wm)
@@ -1201,11 +1434,29 @@ public:
         
         request->send(200, "text/html", content);
     }
+
+    void evictTemplateCache(unsigned long currentMillis) {
+        auto it = cache.templatesByName.begin();
+        while (it != cache.templatesByName.end()) {
+            if ((currentMillis - it->second.cacheTime) > TEMPLATE_CACHE_DURATION) {
+                it = cache.templatesByName.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    void invaliateTemplateCache() {
+        cache.invalidate();
+    }
     
 private:
-    bool loadTemplate(TemplateCache& cache, const char* filename) {
-        if (cache.isValid && (millis() - cache.cacheTime) < TEMPLATE_CACHE_DURATION) {
-            return true;
+    bool loadTemplate(const char* filename) {
+        PageTemplate *page = this->cache.templateForKey(filename);
+        if (page) {
+            if (page->isValid && (millis() - page->cacheTime) < TEMPLATE_CACHE_DURATION) {
+                return true;
+            }
         }
         
         File file = LittleFS.open(filename, "r");
@@ -1214,10 +1465,12 @@ private:
             return false;
         }
         
-        cache.content = file.readString();
-        cache.cacheTime = millis();
-        cache.isValid = true;
+        PageTemplate newTemplate;
+        newTemplate.content = file.readString();
+        newTemplate.isValid = true;
         file.close();
+
+        this->cache.setTemplateForKey(filename, &newTemplate);
         
         Serial.printf("Template loaded: %s\n", filename);
         return true;
@@ -1229,7 +1482,7 @@ private:
             return;
         }
         
-        if (!loadTemplate(mainTemplate, "/index.html")) {
+        if (!loadTemplate("/index.html")) {
             request->send(500, "text/plain", "Template Error: index.html not found");
             return;
         }
@@ -1241,7 +1494,7 @@ private:
     void handleDetailedPage(AsyncWebServerRequest* request) {
         Serial.println("Handling detailed weather request...");
         
-        if (!loadTemplate(detailedTemplate, "/detailed_weather.html")) {
+        if (!loadTemplate("/detailed_weather.html")) {
             Serial.println("ERROR: Could not load detailed_weather.html template");
             request->send(500, "text/plain", "Template Error: detailed_weather.html not found. Please upload to LittleFS.");
             return;
@@ -1268,6 +1521,11 @@ private:
                     
                     const METAR& m = airports[i].metarData;
                     
+                    if (m.hasObsTime()) {
+                        char obsTimeBuffer[30];
+                        MetarParser::formatObsTime(m.obsTime, obsTimeBuffer, sizeof(obsTimeBuffer));
+                        detailedData += "<div class='weather-item'><strong>Observation Time</strong>" + String(obsTimeBuffer) + "</div>";
+                    }
                     if (m.hasFltcat()) {
                         detailedData += "<div class='weather-item'><strong>Flight Category</strong>" + String(m.fltcat) + "</div>";
                     }
@@ -1292,11 +1550,11 @@ private:
                     
                     detailedData += "</div>";
                     
-                    if (strlen(m.cloudConditions) > 0) {
+                    if (m.cloudConditions && strlen(m.cloudConditions) > 0) {
                         detailedData += "<div class='weather-item' style='grid-column: 1/-1;'><strong>Cloud Conditions</strong>" + String(m.cloudConditions) + "</div>";
                     }
                     
-                    if (strlen(m.rawText) > 0) {
+                    if (m.rawText && strlen(m.rawText) > 0) {
                         detailedData += "<div class='raw-metar'><strong>Raw METAR:</strong><br>" + String(m.rawText) + "</div>";
                     }
                     
@@ -1309,7 +1567,12 @@ private:
                     }
                 }
                 
-                templateHtml = detailedTemplate.content;
+                PageTemplate* tmpl = cache.templateForKey("/detailed_weather.html");
+                if (!tmpl) {
+                    templateHtml = "";
+                } else {
+                    templateHtml= tmpl->content;
+                }
                 templateHtml.replace("%DETAILED_AIRPORT_DATA%", detailedData);
                 templateHtml.replace("%LAST_FETCH%", String(g_state.lastFetchTime));
                 
@@ -1340,7 +1603,7 @@ private:
     }
     
     void handleStatusPage(AsyncWebServerRequest* request) {
-        if (!loadTemplate(statusTemplate, "/api_status.html")) {
+        if (!loadTemplate("/api_status.html")) {
             request->send(500, "text/plain", "Template Error: api_status.html not found");
             return;
         }
@@ -1350,7 +1613,7 @@ private:
     }
     
     void handleSettingsPage(AsyncWebServerRequest* request) {
-        if (!loadTemplate(settingsTemplate, "/settings.html")) {
+        if (!loadTemplate("/settings.html")) {
             request->send(500, "text/plain", "Template Error: settings.html not found");
             return;
         }
@@ -1400,7 +1663,12 @@ private:
     }
     
     String processMainTemplate() {
-        String html = mainTemplate.content;
+        PageTemplate* tmpl = cache.templateForKey("/index.html");
+        if (!tmpl) {
+            return "";
+        }
+
+        String html = tmpl->content;
         
         int validCount = 0;
         for (int i = 0; i < numAirports; i++) {
@@ -1440,12 +1708,18 @@ private:
         html.replace("%VALID_COUNT%", String(validCount));
         html.replace("%TOTAL_COUNT%", String(numAirports));
         html.replace("%AIRPORT_DATA%", airportData);
+        html.replace("%WIND_THRESHOLD%", String(g_state.windCheckThreshold));
         
         return html;
     }
         
     String processStatusTemplate() {
-        String html = statusTemplate.content;
+        PageTemplate* tmpl = cache.templateForKey("/api_status.html");
+        if (!tmpl) {
+            return "";
+        }
+
+        String html = tmpl->content;
         
         unsigned long uptimeSeconds = (millis() - g_state.programStartTime) / 1000;
         unsigned long days = uptimeSeconds / 86400;
@@ -1518,7 +1792,12 @@ private:
     }
     
     String processSettingsTemplate() {
-        String html = settingsTemplate.content;
+        PageTemplate* tmpl = cache.templateForKey("/settings.html");
+        if (!tmpl) {
+            return "";
+        }
+
+        String html = tmpl->content;
         
         html.replace("%BRIGHTNESS%", String(g_state.getBrightness()));
         
@@ -1727,6 +2006,7 @@ void loop() {
     
     handleButtonPress();
     handleWeatherUpdates(currentMillis);
+    webHandler.evictTemplateCache(currentMillis);
 }
 
 // ============================================================================
@@ -1817,6 +2097,7 @@ void handleWeatherUpdates(unsigned long currentMillis) {
         ledController.updateFromAirports(airportLEDs, NUM_AIRPORTS);
         Serial.println("✅ Weather updated - next in " + String(millisToSeconds(REQUEST_INTERVAL)) + "s");
         interval = REQUEST_INTERVAL;
+        webHandler.invaliateTemplateCache();
     } else {
         g_state.setStatus("Weather Fetch Failed");
         ledController.showErrorState();

@@ -86,7 +86,7 @@ Install via Library Manager (Sketch → Include Library → Manage Libraries):
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/yourusername/aviation-weather-map.git
+git clone https://github.com/davidstites/aviation-weather-map.git
 cd aviation-weather-map
 ```
 
